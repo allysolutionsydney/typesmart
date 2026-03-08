@@ -14,6 +14,7 @@ export default function TypeSmartLanding() {
   const [waitlistEmail, setWaitlistEmail] = useState("");
   const [waitlistStatus, setWaitlistStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [waitlistMessage, setWaitlistMessage] = useState("");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   const tones = [
     { id: "professional", label: "Professional" },
@@ -93,6 +94,25 @@ export default function TypeSmartLanding() {
 
   const scrollToDemo = () => {
     document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleCheckout = async () => {
+    setCheckoutLoading(true);
+    try {
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      alert('Failed to start checkout. Please try again.');
+    } finally {
+      setCheckoutLoading(false);
+    }
   };
 
   return (
@@ -290,12 +310,13 @@ export default function TypeSmartLanding() {
             <li className="flex items-center gap-2"><Check className="h-5 w-5 text-green-400" /> Priority support</li>
             <li className="flex items-center gap-2"><Check className="h-5 w-5 text-green-400" /> No watermarks</li>
           </ul>
-          <a 
-            href="https://buy.stripe.com/test_4gwaGtg5W4zY7aE288" 
-            className="block w-full bg-white text-indigo-600 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-all"
+          <button 
+            onClick={handleCheckout}
+            disabled={checkoutLoading}
+            className="w-full bg-white text-indigo-600 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-all disabled:opacity-50"
           >
-            Upgrade Now
-          </a>
+            {checkoutLoading ? 'Loading...' : 'Upgrade Now'}
+          </button>
         </div>
       </section>
 
