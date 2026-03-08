@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Linkedin, Mail, Heart, AlertCircle, Check, Zap } from "lucide-react";
+import { Sparkles, Linkedin, Mail, Heart, AlertCircle, Check, Zap, ArrowRight } from "lucide-react";
 
 export default function TypeSmartLanding() {
   const [activeTool, setActiveTool] = useState<"linkedin" | "email" | "dating" | "complaint">("linkedin");
@@ -9,6 +9,11 @@ export default function TypeSmartLanding() {
   const [tone, setTone] = useState("professional");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  // Waitlist states
+  const [waitlistEmail, setWaitlistEmail] = useState("");
+  const [waitlistStatus, setWaitlistStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [waitlistMessage, setWaitlistMessage] = useState("");
 
   const tones = [
     { id: "professional", label: "Professional" },
@@ -60,6 +65,36 @@ export default function TypeSmartLanding() {
     navigator.clipboard.writeText(output);
   };
 
+  const handleWaitlistSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!waitlistEmail.includes("@")) return;
+    
+    setWaitlistStatus("loading");
+    
+    try {
+      const response = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: waitlistEmail }),
+      });
+      
+      if (response.ok) {
+        setWaitlistStatus("success");
+        setWaitlistMessage("You're on the list! We'll notify you when Pro features launch.");
+        setWaitlistEmail("");
+      } else {
+        throw new Error('Failed');
+      }
+    } catch (error) {
+      setWaitlistStatus("error");
+      setWaitlistMessage("Something went wrong. Please try again.");
+    }
+  };
+
+  const scrollToDemo = () => {
+    document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white">
       {/* Hero Section */}
@@ -75,19 +110,60 @@ export default function TypeSmartLanding() {
           Transform your writing in seconds. Professional LinkedIn posts, polished emails, 
           confident dating messages, and effective complaints—powered by AI.
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <button className="bg-indigo-500 hover:bg-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all flex items-center justify-center gap-2">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+          <button 
+            onClick={scrollToDemo}
+            className="bg-indigo-500 hover:bg-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all flex items-center justify-center gap-2"
+          >
             <Zap className="h-5 w-5" />
             Try Free (5/day)
           </button>
-          <button className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all">
+          <a 
+            href="#pricing"
+            className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all flex items-center justify-center"
+          >
             Upgrade to Pro $9/mo
-          </button>
+          </a>
+        </div>
+        
+        {/* Waitlist Form */}
+        <div className="max-w-md mx-auto">
+          <p className="text-slate-400 mb-4">Get notified about new features & updates</p>
+          <form onSubmit={handleWaitlistSubmit} className="flex gap-2">
+            <input
+              type="email"
+              value={waitlistEmail}
+              onChange={(e) => setWaitlistEmail(e.target.value)}
+              placeholder="Enter your email"
+              className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              disabled={waitlistStatus === "loading" || waitlistStatus === "success"}
+            />
+            <button
+              type="submit"
+              disabled={waitlistStatus === "loading" || waitlistStatus === "success"}
+              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2"
+            >
+              {waitlistStatus === "loading" ? (
+                <div className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
+              ) : waitlistStatus === "success" ? (
+                <Check className="h-5 w-5" />
+              ) : (
+                <>
+                  Join <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </form>
+          {waitlistMessage && (
+            <p className={`mt-3 text-sm ${waitlistStatus === "success" ? "text-green-400" : "text-red-400"}`}>
+              {waitlistMessage}
+            </p>
+          )}
         </div>
       </header>
 
       {/* Demo Section */}
-      <section className="container mx-auto px-4 py-16">
+      <section id="demo" className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto bg-slate-800/50 rounded-3xl p-8 backdrop-blur-sm border border-slate-700">
           {/* Tool Selector */}
           <div className="flex flex-wrap gap-2 mb-6">
@@ -202,7 +278,7 @@ export default function TypeSmartLanding() {
       </section>
 
       {/* Pricing */}
-      <section className="container mx-auto px-4 py-16">
+      <section id="pricing" className="container mx-auto px-4 py-16">
         <div className="max-w-md mx-auto bg-gradient-to-b from-indigo-600 to-purple-700 rounded-3xl p-8 text-center">
           <h3 className="text-2xl font-bold mb-2">Pro Plan</h3>
           <div className="text-5xl font-bold mb-2">$9<span className="text-2xl font-normal text-indigo-200">/mo</span></div>
@@ -214,9 +290,12 @@ export default function TypeSmartLanding() {
             <li className="flex items-center gap-2"><Check className="h-5 w-5 text-green-400" /> Priority support</li>
             <li className="flex items-center gap-2"><Check className="h-5 w-5 text-green-400" /> No watermarks</li>
           </ul>
-          <button className="w-full bg-white text-indigo-600 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-all">
+          <a 
+            href="https://buy.stripe.com/test_4gwaGtg5W4zY7aE288" 
+            className="block w-full bg-white text-indigo-600 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-all"
+          >
             Upgrade Now
-          </button>
+          </a>
         </div>
       </section>
 
