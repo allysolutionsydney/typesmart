@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
+import { canGenerate, trackGeneration } from "@/lib/supabase";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -7,12 +9,36 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { tool, input, tone } = await request.json();
 
     if (!input || !tool || !tone) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
+      );
+    }
+
+    // Check usage limits
+    const { allowed, remaining, isPro } = await canGenerate(userId);
+    
+    if (!allowed) {
+      return NextResponse.json(
+        { 
+          error: "Free limit reached", 
+          message: "You've used all 5 free generations today. Upgrade to Pro for unlimited access.",
+          remaining: 0,
+          isPro
+        },
+        { status: 429 }
       );
     }
 
@@ -43,7 +69,14 @@ export async function POST(request: NextRequest) {
 
     const generatedText = completion.choices[0]?.message?.content || "Error generating content";
 
-    return NextResponse.json({ output: generatedText });
+    // Track this generation
+    await trackGeneration(userId);
+
+    return NextResponse.json({ 
+      output: generatedText,
+      remaining: remaining - 1,
+      isPro
+    });
   } catch (error) {
     console.error("Error generating content:", error);
     return NextResponse.json(

@@ -1,14 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { Sparkles, Linkedin, Mail, Heart, AlertCircle, Check, Zap, ArrowRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useAuth, UserButton } from "@clerk/nextjs";
+import { Sparkles, Linkedin, Mail, Heart, AlertCircle, Check, Zap, ArrowRight, Crown } from "lucide-react";
+import Link from "next/link";
 
 export default function TypeSmartLanding() {
+  const { isSignedIn, isLoaded } = useAuth();
   const [activeTool, setActiveTool] = useState<"linkedin" | "email" | "dating" | "complaint">("linkedin");
   const [input, setInput] = useState("");
   const [tone, setTone] = useState("professional");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [isPro, setIsPro] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Waitlist states
   const [waitlistEmail, setWaitlistEmail] = useState("");
@@ -31,9 +37,30 @@ export default function TypeSmartLanding() {
     { id: "complaint", label: "Complaint", icon: AlertCircle },
   ];
 
+  // Get usage on load
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      fetchUsage();
+    }
+  }, [isLoaded, isSignedIn]);
+
+  const fetchUsage = async () => {
+    try {
+      const response = await fetch('/api/usage');
+      if (response.ok) {
+        const data = await response.json();
+        setRemaining(data.remaining);
+        setIsPro(data.isPro);
+      }
+    } catch (error) {
+      console.error('Error fetching usage:', error);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!input.trim()) return;
     setLoading(true);
+    setError(null);
     
     try {
       const response = await fetch('/api/generate', {
@@ -48,15 +75,30 @@ export default function TypeSmartLanding() {
         }),
       });
 
+      if (response.status === 401) {
+        setError("Please sign in to generate content.");
+        setLoading(false);
+        return;
+      }
+
+      if (response.status === 429) {
+        const data = await response.json();
+        setError(data.message || "You've reached your daily limit.");
+        setLoading(false);
+        return;
+      }
+
       if (!response.ok) {
         throw new Error('Failed to generate content');
       }
 
       const data = await response.json();
       setOutput(data.output);
+      setRemaining(data.remaining);
+      setIsPro(data.isPro);
     } catch (error) {
       console.error('Error generating content:', error);
-      setOutput('Sorry, there was an error generating content. Please try again.');
+      setError('Sorry, there was an error generating content. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -117,8 +159,47 @@ export default function TypeSmartLanding() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white">
+      {/* Header */}
+      <header className="border-b border-slate-800">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <Sparkles className="h-6 w-6 text-indigo-400" />
+            <span className="text-xl font-bold">TypeSmart</span>
+          </Link>
+          
+          <div className="flex items-center gap-4">
+            {isSignedIn ? (
+              <>
+                <Link 
+                  href="/dashboard"
+                  className="text-slate-300 hover:text-white transition-colors"
+                >
+                  Dashboard
+                </Link>
+                <UserButton />
+              </>
+            ) : (
+              <>
+                <Link 
+                  href="/sign-in"
+                  className="text-slate-300 hover:text-white transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link 
+                  href="/sign-up"
+                  className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium transition-all"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+
       {/* Hero Section */}
-      <header className="container mx-auto px-4 py-16 text-center">
+      <section className="container mx-auto px-4 py-16 text-center">
         <div className="inline-flex items-center gap-2 rounded-full bg-indigo-500/20 px-4 py-2 text-sm font-medium text-indigo-300 mb-6">
           <Sparkles className="h-4 w-4" />
           AI-Powered Writing Assistant
@@ -130,61 +211,119 @@ export default function TypeSmartLanding() {
           Transform your writing in seconds. Professional LinkedIn posts, polished emails, 
           confident dating messages, and effective complaints—powered by AI.
         </p>
+        
+        {/* Usage indicator for signed in users */}
+        {isSignedIn && (
+          <>
+            {remaining !== null && !isPro && (
+              <div className="inline-flex items-center gap-2 bg-slate-800/50 px-4 py-2 rounded-full mb-6">
+                <Zap className="h-4 w-4 text-yellow-400" />
+                <span className="text-slate-300">
+                  {remaining} free generations remaining today
+                </span>
+              </div>
+            )}
+            {isPro && (
+              <div className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 px-4 py-2 rounded-full mb-6 border border-indigo-500/30">
+                <Crown className="h-4 w-4 text-indigo-400" />
+                <span className="text-indigo-300">Pro Plan — Unlimited</span>
+              </div>
+            )}
+          </>
+        )}
+        
         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
           <button 
             onClick={scrollToDemo}
             className="bg-indigo-500 hover:bg-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all flex items-center justify-center gap-2"
           >
             <Zap className="h-5 w-5" />
-            Try Free (5/day)
+            Try Free
           </button>
-          <a 
-            href="#pricing"
-            className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all flex items-center justify-center"
-          >
-            Upgrade to Pro $9/mo
-          </a>
+          {!isSignedIn ? (
+            <Link 
+              href="/sign-up"
+              className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all"
+            >
+              Sign Up Free
+            </Link>
+          ) : (
+            !isPro && (
+              <button
+                onClick={handleCheckout}
+                disabled={checkoutLoading}
+                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all disabled:opacity-50"
+              >
+                {checkoutLoading ? 'Loading...' : 'Upgrade to Pro $9/mo'}
+              </button>
+            )
+          )}
         </div>
         
         {/* Waitlist Form */}
-        <div className="max-w-md mx-auto">
-          <p className="text-slate-400 mb-4">Get notified about new features & updates</p>
-          <form onSubmit={handleWaitlistSubmit} className="flex gap-2">
-            <input
-              type="email"
-              value={waitlistEmail}
-              onChange={(e) => setWaitlistEmail(e.target.value)}
-              placeholder="Enter your email"
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              disabled={waitlistStatus === "loading" || waitlistStatus === "success"}
-            />
-            <button
-              type="submit"
-              disabled={waitlistStatus === "loading" || waitlistStatus === "success"}
-              className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2"
-            >
-              {waitlistStatus === "loading" ? (
-                <div className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
-              ) : waitlistStatus === "success" ? (
-                <Check className="h-5 w-5" />
-              ) : (
-                <>
-                  Join <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </button>
-          </form>
-          {waitlistMessage && (
-            <p className={`mt-3 text-sm ${waitlistStatus === "success" ? "text-green-400" : "text-red-400"}`}>
-              {waitlistMessage}
-            </p>
-          )}
-        </div>
-      </header>
+        {!isSignedIn && (
+          <div className="max-w-md mx-auto">
+            <p className="text-slate-400 mb-4">Get notified about new features & updates</p>
+            <form onSubmit={handleWaitlistSubmit} className="flex gap-2">
+              <input
+                type="email"
+                value={waitlistEmail}
+                onChange={(e) => setWaitlistEmail(e.target.value)}
+                placeholder="Enter your email"
+                className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                disabled={waitlistStatus === "loading" || waitlistStatus === "success"}
+              />
+              <button
+                type="submit"
+                disabled={waitlistStatus === "loading" || waitlistStatus === "success"}
+                className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2"
+              >
+                {waitlistStatus === "loading" ? (
+                  <div className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
+                ) : waitlistStatus === "success" ? (
+                  <Check className="h-5 w-5" />
+                ) : (
+                  <>
+                    Join <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+            </form>
+            {waitlistMessage && (
+              <p className={`mt-3 text-sm ${waitlistStatus === "success" ? "text-green-400" : "text-red-400"}`}>
+                {waitlistMessage}
+              </p>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* Demo Section */}
       <section id="demo" className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto bg-slate-800/50 rounded-3xl p-8 backdrop-blur-sm border border-slate-700">
+          {/* Sign in prompt for non-authenticated users */}
+          {!isSignedIn && (
+            <div className="bg-slate-700/50 rounded-xl p-6 mb-6 text-center">
+              <p className="text-slate-300 mb-4">
+                Sign in to generate content. Free tier: 5 generations per day.
+              </p>
+              <div className="flex gap-4 justify-center">
+                <Link 
+                  href="/sign-in"
+                  className="bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold transition-all"
+                >
+                  Sign In
+                </Link>
+                <Link 
+                  href="/sign-up"
+                  className="bg-slate-600 hover:bg-slate-500 text-white px-6 py-3 rounded-xl font-semibold transition-all"
+                >
+                  Create Account
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* Tool Selector */}
           <div className="flex flex-wrap gap-2 mb-6">
             {tools.map((tool) => {
@@ -231,24 +370,44 @@ export default function TypeSmartLanding() {
             className="w-full h-32 bg-slate-900/50 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none mb-4"
           />
 
+          {/* Error message */}
+          {error && (
+            <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-4 mb-4">
+              <p className="text-red-300">{error}</p>
+            </div>
+          )}
+
           {/* Generate Button */}
-          <button
-            onClick={handleGenerate}
-            disabled={loading || !input.trim()}
-            className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-xl font-semibold text-lg transition-all flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-5 w-5" />
-                Generate with AI
-              </>
-            )}
-          </button>
+          {isSignedIn ? (
+            <button
+              onClick={handleGenerate}
+              disabled={loading || !input.trim() || (remaining === 0 && !isPro)}
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-xl font-semibold text-lg transition-all flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
+                  Generating...
+                </>
+              ) : remaining === 0 && !isPro ? (
+                "Daily Limit Reached — Upgrade to Pro"
+              ) : (
+                <>
+                  <Sparkles className="h-5 w-5" />
+                  Generate with AI
+                  {remaining !== null && !isPro && ` (${remaining} left)`}
+                </>
+              )}
+            </button>
+          ) : (
+            <Link
+              href="/sign-in"
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white py-4 rounded-xl font-semibold text-lg transition-all flex items-center justify-center gap-2"
+            >
+              <Sparkles className="h-5 w-5" />
+              Sign In to Generate
+            </Link>
+          )}
 
           {/* Output */}
           {output && (
@@ -310,13 +469,28 @@ export default function TypeSmartLanding() {
             <li className="flex items-center gap-2"><Check className="h-5 w-5 text-green-400" /> Priority support</li>
             <li className="flex items-center gap-2"><Check className="h-5 w-5 text-green-400" /> No watermarks</li>
           </ul>
-          <button 
-            onClick={handleCheckout}
-            disabled={checkoutLoading}
-            className="w-full bg-white text-indigo-600 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-all disabled:opacity-50"
-          >
-            {checkoutLoading ? 'Loading...' : 'Upgrade Now'}
-          </button>
+          {isSignedIn ? (
+            !isPro ? (
+              <button 
+                onClick={handleCheckout}
+                disabled={checkoutLoading}
+                className="w-full bg-white text-indigo-600 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-all disabled:opacity-50"
+              >
+                {checkoutLoading ? 'Loading...' : 'Upgrade Now'}
+              </button>
+            ) : (
+              <div className="bg-green-500/20 text-green-300 py-4 rounded-xl font-bold text-lg">
+                ✓ You're on Pro
+              </div>
+            )
+          ) : (
+            <Link 
+              href="/sign-up"
+              className="block w-full bg-white text-indigo-600 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-all"
+            >
+              Get Started Free
+            </Link>
+          )}
         </div>
       </section>
 
