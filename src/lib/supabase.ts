@@ -181,13 +181,10 @@ export async function getCustomTones(userId: string) {
 }
 
 // Update custom tone
-export async function updateCustomTone(userId: string, toneId: string, updates: Partial<{ name: string; description: string; sample_text: string }>) {
+export async function updateCustomTone(userId: string, toneId: string, updates: any) {
   // If sample_text updated, regenerate tone_prompt
   if (updates.sample_text) {
-    updates = {
-      ...updates,
-      tone_prompt: await analyzeTone(updates.sample_text)
-    };
+    updates.tone_prompt = await analyzeTone(updates.sample_text);
   }
   
   const { data, error } = await supabase
