@@ -1,8 +1,10 @@
 "use client";
 
 import { UserButton } from "@clerk/nextjs";
-import { Sparkles, Zap, ArrowLeft, Crown } from "lucide-react";
+import { Sparkles, Zap, ArrowLeft, Crown, Users, Palette } from "lucide-react";
 import Link from "next/link";
+import CustomTonesManager from "@/components/CustomTonesManager";
+import TeamManager from "@/components/TeamManager";
 
 interface DashboardClientProps {
   userId: string;
@@ -37,7 +39,7 @@ export default function DashboardClient({ usage, remaining, isPro }: DashboardCl
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-12">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold mb-8">Your Dashboard</h1>
 
           {/* Stats Grid */}
@@ -91,12 +93,33 @@ export default function DashboardClient({ usage, remaining, isPro }: DashboardCl
             </div>
           </div>
 
+          {/* Two Column Layout */}
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Custom Tones Section */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Palette className="h-5 w-5 text-indigo-400" />
+                <h2 className="text-xl font-semibold">Custom Tones</h2>
+              </div>
+              <CustomTonesManager />
+            </div>
+
+            {/* Team Section */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Users className="h-5 w-5 text-indigo-400" />
+                <h2 className="text-xl font-semibold">Team</h2>
+              </div>
+              <TeamManager />
+            </div>
+          </div>
+
           {/* Upgrade CTA (if free) */}
           {!isPro && (
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-700 rounded-2xl p-8 text-center">
+            <div className="mt-12 bg-gradient-to-r from-indigo-600 to-purple-700 rounded-2xl p-8 text-center">
               <h2 className="text-2xl font-bold mb-4">Upgrade to Pro</h2>
               <p className="text-indigo-200 mb-6 max-w-md mx-auto">
-                Get unlimited AI writing generations, save your history, and unlock all features.
+                Get unlimited AI writing generations, custom tones, team features, and more.
               </p>
               <Link
                 href="/"
