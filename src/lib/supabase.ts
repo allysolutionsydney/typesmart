@@ -143,3 +143,216 @@ export async function saveFeedback(userId: string, generationId: string, rating:
   
   if (error) throw error;
 }
+
+// CUSTOM TONES
+
+// Create a custom tone
+export async function createCustomTone(userId: string, name: string, description: string, sampleText: string) {
+  // Generate tone prompt from sample text using OpenAI
+  const tonePrompt = await analyzeTone(sampleText);
+  
+  const { data, error } = await supabase
+    .from("custom_tones")
+    .insert({ 
+      user_id: userId, 
+      name, 
+      description, 
+      sample_text: sampleText,
+      tone_prompt: tonePrompt 
+    })
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+}
+
+// Get all custom tones for a user
+export async function getCustomTones(userId: string) {
+  const { data, error } = await supabase
+    .from("custom_tones")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+  
+  if (error) throw error;
+  return data || [];
+}
+
+// Update custom tone
+export async function updateCustomTone(userId: string, toneId: string, updates: Partial<{ name: string; description: string; sample_text: string }>) {
+  // If sample_text updated, regenerate tone_prompt
+  if (updates.sample_text) {
+    updates = {
+      ...updates,
+      tone_prompt: await analyzeTone(updates.sample_text)
+    };
+  }
+  
+  const { data, error } = await supabase
+    .from("custom_tones")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", toneId)
+    .eq("user_id", userId)
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+}
+
+// Delete custom tone (soft delete)
+export async function deleteCustomTone(userId: string, toneId: string) {
+  const { error } = await supabase
+    .from("custom_tones")
+    .update({ is_active: false })
+    .eq("id", toneId)
+    .eq("user_id", userId);
+  
+  if (error) throw error;
+}
+
+// Helper function to analyze tone
+async function analyzeTone(sampleText: string): Promise<string> {
+  // This would call OpenAI to analyze the tone
+  // For now, return a default prompt
+  return `Rewrite the following in a tone similar to this example: "${sampleText.substring(0, 200)}...". Match the formality, vocabulary level, sentence structure, and overall voice.`;
+}
+
+// TEAM MANAGEMENT
+
+// Create a team
+export async function createTeam(ownerId: string, name: string, maxSeats: number = 5) {
+  const { data, error } = await supabase
+    .from("teams")
+    .insert({ 
+      owner_id: ownerId, 
+      name, 
+      max_seats: maxSeats 
+    })
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+}
+
+// Get team for user
+export async function getTeamForUser(userId: string) {
+  // Check if user owns a team
+  const { data: ownedTeam } = await supabase
+    .from("teams")
+    .select("*")
+    .eq("owner_id", userId)
+    .single();
+  
+  if (ownedTeam) return { ...ownedTeam, role: 'owner' };
+  
+  // Check if user is a member of a team
+  const { data: membership } = await supabase
+    .from("team_members")
+    .select("*, team:teams(*)")
+    .eq("user_id", userId)
+    .eq("role", 'member')
+    .single();
+  
+  if (membership) {
+    return { ...membership.team, role: membership.role };
+  }
+  
+  return null;
+}
+
+// Get team members
+export async function getTeamMembers(teamId: string) {
+  const { data, error } = await supabase
+    .from("team_members")
+    .select("*")
+    .eq("team_id", teamId);
+  
+  if (error) throw error;
+  return data || [];
+}
+
+// Invite team member
+export async function inviteTeamMember(teamId: string, email: string, invitedBy: string) {
+  const token = generateInvitationToken();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+  
+  const { data, error } = await supabase
+    .from("team_invitations")
+    .insert({ 
+      team_id: teamId, 
+      email, 
+      invited_by: invitedBy,
+      token,
+      expires_at: expiresAt.toISOString()
+    })
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return { ...data, inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL}/team/invite?token=${token}` };
+}
+
+// Accept team invitation
+export async function acceptInvitation(token: string, userId: string) {
+  // Get invitation
+  const { data: invitation } = await supabase
+    .from("team_invitations")
+    .select("*")
+    .eq("token", token)
+    .eq("status", 'pending')
+    .gt("expires_at", new Date().toISOString())
+    .single();
+  
+  if (!invitation) {
+    throw new Error("Invalid or expired invitation");
+  }
+  
+  // Add user to team
+  const { error: memberError } = await supabase
+    .from("team_members")
+    .insert({
+      team_id: invitation.team_id,
+      user_id: userId,
+      invited_by: invitation.invited_by,
+      joined_at: new Date().toISOString()
+    });
+  
+  if (memberError) throw memberError;
+  
+  // Mark invitation as accepted
+  const { error: updateError } = await supabase
+    .from("team_invitations")
+    .update({ status: 'accepted' })
+    .eq("id", invitation.id);
+  
+  if (updateError) throw updateError;
+  
+  return { success: true };
+}
+
+// Remove team member
+export async function removeTeamMember(teamId: string, userId: string, removedBy: string) {
+  const { error } = await supabase
+    .from("team_members")
+    .delete()
+    .eq("team_id", teamId)
+    .eq("user_id", userId);
+  
+  if (error) throw error;
+}
+
+// Check if user has team access (for usage limits)
+export async function hasTeamAccess(userId: string): Promise<boolean> {
+  const team = await getTeamForUser(userId);
+  return !!team && team.status === 'active';
+}
+
+// Helper function
+function generateInvitationToken(): string {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}

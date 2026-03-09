@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
-import { canGenerate, trackGeneration, saveGeneration } from "@/lib/supabase";
+import { canGenerate, trackGeneration, saveGeneration, hasTeamAccess } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { tool, input, tone } = await request.json();
+    const { tool, input, tone, customToneId } = await request.json();
 
     if (!input || !tool || !tone) {
       return NextResponse.json(
@@ -27,8 +28,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check usage limits
-    const { allowed, remaining, isPro } = await canGenerate(userId);
+    // Check if user has team access (unlimited generations)
+    const hasTeam = await hasTeamAccess(userId);
+
+    // Check usage limits (skip if team member)
+    const { allowed, remaining, isPro } = hasTeam 
+      ? { allowed: true, remaining: Infinity, isPro: true }
+      : await canGenerate(userId);
     
     if (!allowed) {
       return NextResponse.json(
@@ -42,14 +48,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const prompts: Record<string, string> = {
-      linkedin: `Rewrite the following as a professional LinkedIn post. Tone: ${tone}. Make it engaging and appropriate for a professional audience. Original: ${input}`,
-      email: `Rewrite the following email. Tone: ${tone}. Make it clear and effective. Original: ${input}`,
-      dating: `Write a dating app message based on this context. Tone: ${tone}. Be genuine and engaging. Context: ${input}`,
-      complaint: `Rewrite this as an effective complaint letter. Tone: ${tone}. Be firm but professional. Original: ${input}`,
-    };
+    let prompt: string;
 
-    const prompt = prompts[tool] || prompts.linkedin;
+    // If custom tone ID provided, fetch the tone prompt
+    if (customToneId) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: customTone } = await supabase
+        .from("custom_tones")
+        .select("tone_prompt")
+        .eq("id", customToneId)
+        .eq("user_id", userId)
+        .single();
+
+      if (customTone?.tone_prompt) {
+        prompt = `${customTone.tone_prompt}\n\nOriginal: ${input}`;
+      } else {
+        // Fallback to default
+        prompt = getDefaultPrompt(tool, tone, input);
+      }
+    } else {
+      prompt = getDefaultPrompt(tool, tone, input);
+    }
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -88,4 +111,15 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function getDefaultPrompt(tool: string, tone: string, input: string): string {
+  const prompts: Record<string, string> = {
+    linkedin: `Rewrite the following as a professional LinkedIn post. Tone: ${tone}. Make it engaging and appropriate for a professional audience. Original: ${input}`,
+    email: `Rewrite the following email. Tone: ${tone}. Make it clear and effective. Original: ${input}`,
+    dating: `Write a dating app message based on this context. Tone: ${tone}. Be genuine and engaging. Context: ${input}`,
+    complaint: `Rewrite this as an effective complaint letter. Tone: ${tone}. Be firm but professional. Original: ${input}`,
+  };
+
+  return prompts[tool] || prompts.linkedin;
 }
