@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { useAuth, UserButton } from "@clerk/nextjs";
 import { Sparkles, Linkedin, Mail, Heart, AlertCircle, Check, Zap, ArrowRight, Crown } from "lucide-react";
 import Link from "next/link";
+import HistorySidebar from "./HistorySidebar";
+import Templates from "./Templates";
+import FeedbackComponent from "./Feedback";
 
 export default function TypeSmartLanding() {
   const { isSignedIn, isLoaded } = useAuth();
@@ -15,6 +18,7 @@ export default function TypeSmartLanding() {
   const [remaining, setRemaining] = useState<number | null>(null);
   const [isPro, setIsPro] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [generationId, setGenerationId] = useState<string | null>(null);
   
   // Waitlist states
   const [waitlistEmail, setWaitlistEmail] = useState("");
@@ -96,6 +100,7 @@ export default function TypeSmartLanding() {
       setOutput(data.output);
       setRemaining(data.remaining);
       setIsPro(data.isPro);
+      setGenerationId(data.generationId || null);
     } catch (error) {
       console.error('Error generating content:', error);
       setError('Sorry, there was an error generating content. Please try again.');
@@ -300,7 +305,8 @@ export default function TypeSmartLanding() {
 
       {/* Demo Section */}
       <section id="demo" className="container mx-auto px-4 py-16">
-        <div className="max-w-4xl mx-auto bg-slate-800/50 rounded-3xl p-8 backdrop-blur-sm border border-slate-700">
+        <div className={`${isSignedIn ? 'flex flex-col lg:flex-row gap-8' : ''}`}>
+          <div className="flex-1 max-w-4xl mx-auto bg-slate-800/50 rounded-3xl p-8 backdrop-blur-sm border border-slate-700">
           {/* Sign in prompt for non-authenticated users */}
           {!isSignedIn && (
             <div className="bg-slate-700/50 rounded-xl p-6 mb-6 text-center">
@@ -361,6 +367,15 @@ export default function TypeSmartLanding() {
               </button>
             ))}
           </div>
+
+          {/* Templates */}
+          <Templates 
+            tool={activeTool} 
+            onSelectTemplate={(example, templateTone) => {
+              setInput(example);
+              setTone(templateTone);
+            }}
+          />
 
           {/* Input */}
           <textarea
@@ -423,6 +438,15 @@ export default function TypeSmartLanding() {
                 </button>
               </div>
               <p className="text-white whitespace-pre-wrap">{output}</p>
+              <FeedbackComponent generationId={generationId || undefined} />
+            </div>
+          )}
+          </div>
+
+          {/* History Sidebar - Only for signed in users */}
+          {isSignedIn && (
+            <div className="lg:w-80">
+              <HistorySidebar />
             </div>
           )}
         </div>

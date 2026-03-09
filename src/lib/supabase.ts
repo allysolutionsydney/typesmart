@@ -98,3 +98,48 @@ export async function canGenerate(userId: string): Promise<{ allowed: boolean; r
     isPro: false,
   };
 }
+
+// Save generation to history
+export async function saveGeneration(userId: string, tool: string, tone: string, input: string, output: string) {
+  const { data, error } = await supabase
+    .from("generations")
+    .insert({ user_id: userId, tool, tone, input, output })
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+}
+
+// Get user's generation history
+export async function getGenerationHistory(userId: string, limit: number = 50) {
+  const { data, error } = await supabase
+    .from("generations")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  
+  if (error) throw error;
+  return data || [];
+}
+
+// Delete a generation from history
+export async function deleteGeneration(userId: string, generationId: string) {
+  const { error } = await supabase
+    .from("generations")
+    .delete()
+    .eq("id", generationId)
+    .eq("user_id", userId);
+  
+  if (error) throw error;
+}
+
+// Save feedback for a generation
+export async function saveFeedback(userId: string, generationId: string, rating: number, comment?: string) {
+  const { error } = await supabase
+    .from("feedback")
+    .insert({ user_id: userId, generation_id: generationId, rating, comment });
+  
+  if (error) throw error;
+}

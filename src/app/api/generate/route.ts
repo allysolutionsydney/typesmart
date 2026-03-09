@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
-import { canGenerate, trackGeneration } from "@/lib/supabase";
+import { canGenerate, trackGeneration, saveGeneration } from "@/lib/supabase";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -72,10 +72,14 @@ export async function POST(request: NextRequest) {
     // Track this generation
     await trackGeneration(userId);
 
+    // Save to history
+    const generation = await saveGeneration(userId, tool, tone, input, generatedText);
+
     return NextResponse.json({ 
       output: generatedText,
       remaining: remaining - 1,
-      isPro
+      isPro,
+      generationId: generation.id
     });
   } catch (error) {
     console.error("Error generating content:", error);
