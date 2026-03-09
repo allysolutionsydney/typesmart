@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createCustomTone, getCustomTones, updateCustomTone, deleteCustomTone } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // GET - List custom tones
 export async function GET() {
@@ -16,8 +21,16 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const tones = await getCustomTones(userId);
-    return NextResponse.json({ tones });
+    const { data: tones, error } = await supabase
+      .from("custom_tones")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    return NextResponse.json({ tones: tones || [] });
   } catch (error) {
     console.error("Error fetching custom tones:", error);
     return NextResponse.json(
@@ -48,7 +61,19 @@ export async function POST(request: NextRequest) {
     // Analyze tone with OpenAI
     const tonePrompt = await analyzeToneWithAI(sampleText);
 
-    const tone = await createCustomTone(userId, name, description || "", sampleText, tonePrompt);
+    const { data: tone, error } = await supabase
+      .from("custom_tones")
+      .insert({
+        user_id: userId,
+        name,
+        description,
+        sample_text: sampleText,
+        tone_prompt: tonePrompt
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
 
     return NextResponse.json({ tone }, { status: 201 });
   } catch (error) {
@@ -80,13 +105,22 @@ export async function PATCH(request: NextRequest) {
 
     const updates: any = {};
     if (name) updates.name = name;
-    if (description) updates.description = description;
+    if (description !== undefined) updates.description = description;
     if (sampleText) {
       updates.sample_text = sampleText;
       updates.tone_prompt = await analyzeToneWithAI(sampleText);
     }
+    updates.updated_at = new Date().toISOString();
 
-    const tone = await updateCustomTone(userId, id, updates);
+    const { data: tone, error } = await supabase
+      .from("custom_tones")
+      .update(updates)
+      .eq("id", id)
+      .eq("user_id", userId)
+      .select()
+      .single();
+
+    if (error) throw error;
 
     return NextResponse.json({ tone });
   } catch (error) {
@@ -117,7 +151,13 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await deleteCustomTone(userId, id);
+    const { error } = await supabase
+      .from("custom_tones")
+      .update({ is_active: false })
+      .eq("id", id)
+      .eq("user_id", userId);
+
+    if (error) throw error;
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -157,51 +197,4 @@ async function analyzeToneWithAI(sampleText: string): Promise<string> {
 
 function defaultTonePrompt(sampleText: string): string {
   return `Rewrite the following in a tone similar to this example: "${sampleText.substring(0, 100)}...". Match the formality, vocabulary level, and sentence structure.`;
-}
-
-// Update function signature to include tonePrompt
-async function createCustomTone(userId: string, name: string, description: string, sampleText: string, tonePrompt: string) {
-  const { supabase } = await import("@/lib/supabase");
-  
-  const { data, error } = await supabase
-    .from("custom_tones")
-    .insert({ 
-      user_id: userId, 
-      name, 
-      description, 
-      sample_text: sampleText,
-      tone_prompt: tonePrompt 
-    })
-    .select()
-    .single();
-  
-  if (error) throw error;
-  return data;
-}
-
-async function updateCustomTone(userId: string, toneId: string, updates: any) {
-  const { supabase } = await import("@/lib/supabase");
-  
-  const { data, error } = await supabase
-    .from("custom_tones")
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq("id", toneId)
-    .eq("user_id", userId)
-    .select()
-    .single();
-  
-  if (error) throw error;
-  return data;
-}
-
-async function deleteCustomTone(userId: string, toneId: string) {
-  const { supabase } = await import("@/lib/supabase");
-  
-  const { error } = await supabase
-    .from("custom_tones")
-    .update({ is_active: false })
-    .eq("id", toneId)
-    .eq("user_id", userId);
-  
-  if (error) throw error;
 }
