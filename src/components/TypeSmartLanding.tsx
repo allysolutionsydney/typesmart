@@ -7,6 +7,7 @@ import Link from "next/link";
 import HistorySidebar from "./HistorySidebar";
 import Templates from "./Templates";
 import FeedbackComponent from "./Feedback";
+import CustomTonesManager from "./CustomTonesManager";
 
 export default function TypeSmartLanding() {
   const { isSignedIn, isLoaded } = useAuth();
@@ -19,6 +20,8 @@ export default function TypeSmartLanding() {
   const [isPro, setIsPro] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generationId, setGenerationId] = useState<string | null>(null);
+  const [customToneId, setCustomToneId] = useState<string | null>(null);
+  const [showCustomTones, setShowCustomTones] = useState(false);
   
   // Waitlist states
   const [waitlistEmail, setWaitlistEmail] = useState("");
@@ -76,6 +79,7 @@ export default function TypeSmartLanding() {
           tool: activeTool,
           input,
           tone,
+          customToneId,
         }),
       });
 
@@ -352,13 +356,16 @@ export default function TypeSmartLanding() {
           </div>
 
           {/* Tone Selector */}
-          <div className="flex flex-wrap gap-2 mb-6">
+          <div className="flex flex-wrap gap-2 mb-4">
             {tones.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setTone(t.id)}
+                onClick={() => {
+                  setTone(t.id);
+                  setCustomToneId(null);
+                }}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  tone === t.id
+                  tone === t.id && !customToneId
                     ? "bg-purple-500 text-white"
                     : "bg-slate-700/50 text-slate-400 hover:bg-slate-700"
                 }`}
@@ -366,7 +373,34 @@ export default function TypeSmartLanding() {
                 {t.label}
               </button>
             ))}
+            {isSignedIn && (
+              <button
+                onClick={() => setShowCustomTones(!showCustomTones)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1 ${
+                  showCustomTones || customToneId
+                    ? "bg-indigo-500 text-white"
+                    : "bg-slate-700/50 text-slate-400 hover:bg-slate-700"
+                }`}
+              >
+                <Sparkles className="h-3 w-3" />
+                Custom
+              </button>
+            )}
           </div>
+
+          {/* Custom Tones Panel */}
+          {showCustomTones && isSignedIn && (
+            <div className="mb-4">
+              <CustomTonesManager
+                onSelectTone={(id, name) => {
+                  setCustomToneId(id);
+                  setTone(name);
+                  setShowCustomTones(false);
+                }}
+                selectedToneId={customToneId || undefined}
+              />
+            </div>
+          )}
 
           {/* Templates */}
           <Templates 
