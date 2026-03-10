@@ -8,9 +8,53 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    // Try Clerk auth first (web app)
+    let userId: string | null = null;
+    
+    try {
+      const authResult = await auth();
+      userId = authResult.userId;
+    } catch {
+      userId = null;
+    }
+    
+    // If no Clerk auth, try API key auth (extension)
+    if (!userId) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const apiKey = authHeader.slice(7);
+        
+        // Validate API key and get user
+        const { data: keyData, error: keyError } = await supabase
+          .from("api_keys")
+          .select("user_id")
+          .eq("key", apiKey)
+          .eq("is_active", true)
+          .single();
+        
+        if (keyError || !keyData) {
+          return NextResponse.json(
+            { error: "Invalid API key" },
+            { status: 401 }
+          );
+        }
+        
+        userId = keyData.user_id;
+        
+        // Update last used
+        await supabase
+          .from("api_keys")
+          .update({ last_used: new Date().toISOString() })
+          .eq("key", apiKey);
+      }
+    }
     
     if (!userId) {
       return NextResponse.json(
@@ -52,11 +96,6 @@ export async function POST(request: NextRequest) {
 
     // If custom tone ID provided, fetch the tone prompt
     if (customToneId) {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
       const { data: customTone } = await supabase
         .from("custom_tones")
         .select("tone_prompt")
