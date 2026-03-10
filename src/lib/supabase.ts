@@ -5,8 +5,8 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Owner configuration - Add your email(s) here for free unlimited access
 const OWNER_EMAILS = [
-  // Add your email here, e.g., "youremail@gmail.com"
-  "allysolutionsydney@gmail.com", // Replace with your actual email
+  "aliravian489@live.com", // Ali Hassan - Owner
+  "allysolutionsydney@gmail.com",
 ];
 
 // Check if user is owner (bypasses all payment checks)
