@@ -3,6 +3,27 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+// Owner configuration - Add your email(s) here for free unlimited access
+const OWNER_EMAILS = [
+  // Add your email here, e.g., "youremail@gmail.com"
+  "allysolutionsydney@gmail.com", // Replace with your actual email
+];
+
+// Check if user is owner (bypasses all payment checks)
+async function isOwner(userId: string): Promise<boolean> {
+  // Check if user has owner flag in database
+  const { data: user } = await supabase
+    .from("users")
+    .select("email, is_owner")
+    .eq("id", userId)
+    .single();
+  
+  if (user?.is_owner) return true;
+  if (user?.email && OWNER_EMAILS.includes(user.email)) return true;
+  
+  return false;
+}
+
 // Create a mock client if env vars are missing (for build time)
 const createMockClient = () => ({
   from: () => ({
@@ -69,8 +90,11 @@ export async function getTodayUsage(userId: string): Promise<number> {
   return data?.count || 0;
 }
 
-// Check if user has pro subscription
+// Check if user has pro subscription (or is owner)
 export async function isProUser(userId: string): Promise<boolean> {
+  // Check if owner first
+  if (await isOwner(userId)) return true;
+  
   const { data } = await supabase
     .from("subscriptions")
     .select("status")
@@ -81,12 +105,17 @@ export async function isProUser(userId: string): Promise<boolean> {
   return !!data;
 }
 
-// Check if user can generate (free tier: 5/day)
-export async function canGenerate(userId: string): Promise<{ allowed: boolean; remaining: number; isPro: boolean }> {
+// Check if user can generate (free tier: 5/day, owners: unlimited)
+export async function canGenerate(userId: string): Promise<{ allowed: boolean; remaining: number; isPro: boolean; isOwner: boolean }> {
+  // Check if owner first
+  if (await isOwner(userId)) {
+    return { allowed: true, remaining: Infinity, isPro: true, isOwner: true };
+  }
+  
   const isPro = await isProUser(userId);
   
   if (isPro) {
-    return { allowed: true, remaining: Infinity, isPro: true };
+    return { allowed: true, remaining: Infinity, isPro: true, isOwner: false };
   }
   
   const used = await getTodayUsage(userId);
@@ -96,6 +125,7 @@ export async function canGenerate(userId: string): Promise<{ allowed: boolean; r
     allowed: remaining > 0,
     remaining,
     isPro: false,
+    isOwner: false,
   };
 }
 

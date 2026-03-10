@@ -11,9 +11,10 @@ interface DashboardClientProps {
   usage: number;
   remaining: number;
   isPro: boolean;
+  isOwner?: boolean;
 }
 
-export default function DashboardClient({ usage, remaining, isPro }: DashboardClientProps) {
+export default function DashboardClient({ usage, remaining, isPro, isOwner }: DashboardClientProps) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white">
       {/* Header */}
@@ -79,16 +80,16 @@ export default function DashboardClient({ usage, remaining, isPro }: DashboardCl
             {/* Plan Card */}
             <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700">
               <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 bg-pink-500/20 rounded-xl flex items-center justify-center">
-                  <Crown className="h-5 w-5 text-pink-400" />
+                <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${isOwner ? 'bg-amber-500/20' : 'bg-pink-500/20'}`}>
+                  <Crown className={`h-5 w-5 ${isOwner ? 'text-amber-400' : 'text-pink-400'}`} />
                 </div>
                 <h3 className="text-lg font-semibold">Plan</h3>
               </div>
               <p className="text-3xl font-bold mb-1">
-                {isPro ? "Pro" : "Free"}
+                {isOwner ? "Owner" : isPro ? "Pro" : "Free"}
               </p>
               <p className="text-slate-400 text-sm">
-                {isPro ? "$9/month" : "5 generations/day"}
+                {isOwner ? "All features free" : isPro ? "$9/month" : "5 generations/day"}
               </p>
             </div>
           </div>
