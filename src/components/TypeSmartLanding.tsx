@@ -187,6 +187,12 @@ export default function TypeSmartLanding() {
                 >
                   Dashboard
                 </Link>
+                <Link 
+                  href="/account"
+                  className="text-slate-300 hover:text-white transition-colors"
+                >
+                  Account
+                </Link>
                 <UserButton />
               </>
             ) : (
