@@ -18,6 +18,7 @@ export default function TypeSmartLanding() {
   const [loading, setLoading] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [isPro, setIsPro] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [customToneId, setCustomToneId] = useState<string | null>(null);
@@ -58,6 +59,7 @@ export default function TypeSmartLanding() {
         const data = await response.json();
         setRemaining(data.remaining);
         setIsPro(data.isPro);
+        setIsOwner(data.isOwner);
       }
     } catch (error) {
       console.error('Error fetching usage:', error);
@@ -224,20 +226,24 @@ export default function TypeSmartLanding() {
         {/* Usage indicator for signed in users */}
         {isSignedIn && (
           <>
-            {remaining !== null && !isPro && (
+            {isOwner ? (
+              <div className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 px-4 py-2 rounded-full mb-6 border border-amber-500/30">
+                <Crown className="h-4 w-4 text-amber-400" />
+                <span className="text-amber-300">Owner — Unlimited Access</span>
+              </div>
+            ) : remaining !== null && !isPro ? (
               <div className="inline-flex items-center gap-2 bg-slate-800/50 px-4 py-2 rounded-full mb-6">
                 <Zap className="h-4 w-4 text-yellow-400" />
                 <span className="text-slate-300">
                   {remaining} free generations remaining today
                 </span>
               </div>
-            )}
-            {isPro && (
+            ) : isPro ? (
               <div className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 px-4 py-2 rounded-full mb-6 border border-indigo-500/30">
                 <Crown className="h-4 w-4 text-indigo-400" />
                 <span className="text-indigo-300">Pro Plan — Unlimited</span>
               </div>
-            )}
+            ) : null}
           </>
         )}
         
@@ -257,7 +263,7 @@ export default function TypeSmartLanding() {
               Sign Up Free
             </Link>
           ) : (
-            !isPro && (
+            !isOwner && !isPro && (
               <button
                 onClick={handleCheckout}
                 disabled={checkoutLoading}
@@ -438,6 +444,11 @@ export default function TypeSmartLanding() {
                   <div className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
                   Generating...
                 </>
+              ) : isOwner ? (
+                <>
+                  <Sparkles className="h-5 w-5" />
+                  Generate with AI 👑
+                </>
               ) : remaining === 0 && !isPro ? (
                 "Daily Limit Reached — Upgrade to Pro"
               ) : (
@@ -528,7 +539,11 @@ export default function TypeSmartLanding() {
             <li className="flex items-center gap-2"><Check className="h-5 w-5 text-green-400" /> No watermarks</li>
           </ul>
           {isSignedIn ? (
-            !isPro ? (
+            isOwner ? (
+              <div className="bg-amber-500/20 text-amber-300 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2">
+                👑 You're the Owner
+              </div>
+            ) : !isPro ? (
               <button 
                 onClick={handleCheckout}
                 disabled={checkoutLoading}
