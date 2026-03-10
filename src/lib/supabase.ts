@@ -250,10 +250,10 @@ export { getUserTeam as getTeamForUser };
 export { acceptTeamInvite as acceptInvitation };
 
 // Create a team
-export async function createTeam(ownerId: string, name: string) {
+export async function createTeam(ownerId: string, name: string, maxSeats: number = 5) {
   const { data, error } = await supabase
     .from("teams")
-    .insert({ owner_id: ownerId, name })
+    .insert({ owner_id: ownerId, name, max_seats: maxSeats })
     .select()
     .single();
   
