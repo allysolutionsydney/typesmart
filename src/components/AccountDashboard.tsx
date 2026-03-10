@@ -33,8 +33,10 @@ export default function AccountDashboard({ userId, userEmail, isPro, isOwner, us
   const [apiKey, setApiKey] = useState<{id: string, key: string, created_at: string} | null>(null);
   const [loading, setLoading] = useState(false);
   const [subscription, setSubscription] = useState<any>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     fetchApiKey();
     if (isPro || isOwner) {
       fetchSubscription();
@@ -91,7 +93,7 @@ export default function AccountDashboard({ userId, userEmail, isPro, isOwner, us
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'extension', label: 'Browser Extension', icon: Download },
-    ...(isPro || isOwner ? [{ id: 'billing', label: 'Billing', icon: CreditCard }] : []),
+    { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'team', label: 'Team', icon: Users },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -217,18 +219,14 @@ export default function AccountDashboard({ userId, userEmail, isPro, isOwner, us
                     <Check className="h-4 w-4 text-green-400" />
                     All Tones
                   </li>
-                  {(isPro || isOwner) && (
-                    <>
-                      <li className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-green-400" />
-                        Browser Extension
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="h-4 w-4 text-green-400" />
-                        Custom Tones
-                      </li>
-                    </>
-                  )}
+                  <li className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-green-400" />
+                    Browser Extension
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-green-400" />
+                    Custom Tones
+                  </li>
                 </ul>
               </div>
             </div>
@@ -276,7 +274,7 @@ export default function AccountDashboard({ userId, userEmail, isPro, isOwner, us
                 )}
               </div>
 
-              {/* Download Section - Only for Pro/Owner */}
+              {/* Download Section */}
               {(isPro || isOwner) ? (
                 <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700">
                   <div className="flex items-center gap-3 mb-6">
@@ -354,7 +352,7 @@ export default function AccountDashboard({ userId, userEmail, isPro, isOwner, us
           )}
 
           {/* BILLING TAB */}
-          {activeTab === 'billing' && (isPro || isOwner) && (
+          {activeTab === 'billing' && (
             <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 bg-green-500/20 rounded-xl flex items-center justify-center">
