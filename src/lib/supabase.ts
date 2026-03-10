@@ -247,6 +247,7 @@ export async function getUserTeam(userId: string) {
 
 // Alias for compatibility with existing code
 export { getUserTeam as getTeamForUser };
+export { acceptTeamInvite as acceptInvitation };
 
 // Create a team
 export async function createTeam(ownerId: string, name: string) {
