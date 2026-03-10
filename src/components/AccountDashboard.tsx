@@ -18,7 +18,7 @@ import {
   AlertCircle,
   RefreshCw
 } from 'lucide-react';
-import { toast } from 'sonner';
+// Using native alerts instead of toast
 
 interface AccountDashboardProps {
   userId: string;
@@ -72,10 +72,10 @@ export default function AccountDashboard({ userId, userEmail, isPro, isOwner, us
       if (res.ok) {
         const data = await res.json();
         setApiKey(data.apiKey);
-        toast.success('API key generated successfully!');
+        alert('API key generated successfully!');
       }
     } catch (err) {
-      toast.error('Failed to generate API key');
+      alert('Failed to generate API key');
     } finally {
       setLoading(false);
     }
@@ -84,7 +84,7 @@ export default function AccountDashboard({ userId, userEmail, isPro, isOwner, us
   const copyApiKey = () => {
     if (apiKey) {
       navigator.clipboard.writeText(apiKey);
-      toast.success('API key copied to clipboard!');
+      alert('API key copied to clipboard!');
     }
   };
 
@@ -470,11 +470,11 @@ function TeamManager() {
         body: JSON.stringify({ name: 'My Team' }),
       });
       if (res.ok) {
-        toast.success('Team created!');
+        alert('Team created!');
         fetchTeam();
       }
     } catch (err) {
-      toast.error('Failed to create team');
+      alert('Failed to create team');
     } finally {
       setLoading(false);
     }
@@ -492,11 +492,11 @@ function TeamManager() {
         body: JSON.stringify({ email: inviteEmail }),
       });
       if (res.ok) {
-        toast.success(`Invitation sent to ${inviteEmail}`);
+        alert(`Invitation sent to ${inviteEmail}`);
         setInviteEmail('');
       }
     } catch (err) {
-      toast.error('Failed to send invitation');
+      alert('Failed to send invitation');
     } finally {
       setLoading(false);
     }
