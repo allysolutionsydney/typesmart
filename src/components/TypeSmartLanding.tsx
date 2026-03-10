@@ -179,7 +179,7 @@ export default function TypeSmartLanding() {
           </Link>
           
           <div className="flex items-center gap-4">
-            {isSignedIn ? (
+            {isLoaded && isSignedIn ? (
               <>
                 <Link 
                   href="/dashboard"
@@ -195,7 +195,7 @@ export default function TypeSmartLanding() {
                 </Link>
                 <UserButton />
               </>
-            ) : (
+            ) : isLoaded ? (
               <>
                 <Link 
                   href="/sign-in"
@@ -210,7 +210,7 @@ export default function TypeSmartLanding() {
                   Get Started
                 </Link>
               </>
-            )}
+            ) : null}
           </div>
         </div>
       </header>
@@ -230,7 +230,7 @@ export default function TypeSmartLanding() {
         </p>
         
         {/* Usage indicator for signed in users */}
-        {isSignedIn && (
+        {isLoaded && isSignedIn && (
           <>
             {isOwner ? (
               <div className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 px-4 py-2 rounded-full mb-6 border border-amber-500/30">
@@ -439,7 +439,7 @@ export default function TypeSmartLanding() {
           )}
 
           {/* Generate Button */}
-          {isSignedIn ? (
+          {isLoaded && isSignedIn ? (
             <button
               onClick={handleGenerate}
               disabled={loading || !input.trim() || (remaining === 0 && !isPro)}
@@ -465,7 +465,7 @@ export default function TypeSmartLanding() {
                 </>
               )}
             </button>
-          ) : (
+          ) : isLoaded ? (
             <Link
               href="/sign-in"
               className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white py-4 rounded-xl font-semibold text-lg transition-all flex items-center justify-center gap-2"
@@ -473,6 +473,14 @@ export default function TypeSmartLanding() {
               <Sparkles className="h-5 w-5" />
               Sign In to Generate
             </Link>
+          ) : (
+            <button
+              disabled
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 opacity-50 text-white py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-2"
+            >
+              <Sparkles className="h-5 w-5" />
+              Loading...
+            </button>
           )}
 
           {/* Output */}
@@ -495,7 +503,7 @@ export default function TypeSmartLanding() {
           </div>
 
           {/* History Sidebar - Only for signed in users */}
-          {isSignedIn && (
+          {isLoaded && isSignedIn && (
             <div className="lg:w-80">
               <HistorySidebar />
             </div>
@@ -544,7 +552,7 @@ export default function TypeSmartLanding() {
             <li className="flex items-center gap-2"><Check className="h-5 w-5 text-green-400" /> Priority support</li>
             <li className="flex items-center gap-2"><Check className="h-5 w-5 text-green-400" /> No watermarks</li>
           </ul>
-          {isSignedIn ? (
+          {isLoaded && isSignedIn ? (
             isOwner ? (
               <div className="bg-amber-500/20 text-amber-300 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2">
                 👑 You're the Owner
@@ -562,13 +570,20 @@ export default function TypeSmartLanding() {
                 ✓ You're on Pro
               </div>
             )
-          ) : (
+          ) : isLoaded ? (
             <Link 
               href="/sign-up"
               className="block w-full bg-white text-indigo-600 py-4 rounded-xl font-bold text-lg hover:bg-indigo-50 transition-all"
             >
               Get Started Free
             </Link>
+          ) : (
+            <button 
+              disabled
+              className="w-full bg-white text-indigo-600 py-4 rounded-xl font-bold text-lg opacity-50"
+            >
+              Loading...
+            </button>
           )}
         </div>
       </section>
