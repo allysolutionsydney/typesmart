@@ -4,6 +4,15 @@ import { useState, useEffect } from "react";
 import { History, Trash2, Copy, Star } from "lucide-react";
 import { format } from "date-fns";
 
+// Safe date formatter that works consistently between server and client
+function formatDate(dateStr: string, formatStr: string): string {
+  try {
+    return format(new Date(dateStr), formatStr);
+  } catch {
+    return dateStr;
+  }
+}
+
 interface Generation {
   id: string;
   tool: string;
@@ -17,6 +26,11 @@ export default function HistorySidebar() {
   const [history, setHistory] = useState<Generation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<Generation | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     fetchHistory();
@@ -105,7 +119,7 @@ export default function HistorySidebar() {
                 </div>
                 <p className="text-xs text-slate-300 truncate">{item.input}</p>
                 <p className="text-xs text-slate-500 mt-1">
-                  {format(new Date(item.created_at), 'MMM d, h:mm a')}
+                  {mounted ? formatDate(item.created_at, 'MMM d, h:mm a') : '...'}
                 </p>
               </div>
             ))}
@@ -120,7 +134,7 @@ export default function HistorySidebar() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-semibold">{toolLabels[selectedItem.tool]}</h3>
-                <p className="text-sm text-slate-400">{selectedItem.tone} tone • {format(new Date(selectedItem.created_at), 'PPP')}</p>
+                <p className="text-sm text-slate-400">{selectedItem.tone} tone • {mounted ? formatDate(selectedItem.created_at, 'PPP') : '...'}</p>
               </div>
               <button
                 onClick={() => setSelectedItem(null)}
