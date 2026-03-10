@@ -30,7 +30,7 @@ interface AccountDashboardProps {
 
 export default function AccountDashboard({ userId, userEmail, isPro, isOwner, usage }: AccountDashboardProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'extension' | 'billing' | 'team' | 'settings'>('overview');
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState<{id: string, key: string, created_at: string} | null>(null);
   const [loading, setLoading] = useState(false);
   const [subscription, setSubscription] = useState<any>(null);
 
@@ -82,8 +82,8 @@ export default function AccountDashboard({ userId, userEmail, isPro, isOwner, us
   };
 
   const copyApiKey = () => {
-    if (apiKey) {
-      navigator.clipboard.writeText(apiKey);
+    if (apiKey?.key) {
+      navigator.clipboard.writeText(apiKey.key);
       alert('API key copied to clipboard!');
     }
   };
@@ -251,7 +251,7 @@ export default function AccountDashboard({ userId, userEmail, isPro, isOwner, us
 
                 {apiKey ? (
                   <div className="bg-slate-900 rounded-xl p-4 flex items-center justify-between">
-                    <code className="text-sm text-indigo-400 font-mono">{apiKey}</code>
+                    <code className="text-sm text-indigo-400 font-mono">{apiKey.key}</code>
                     <button
                       onClick={copyApiKey}
                       className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
