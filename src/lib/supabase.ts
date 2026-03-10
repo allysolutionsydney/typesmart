@@ -9,8 +9,18 @@ const OWNER_EMAILS = [
   "allysolutionsydney@gmail.com",
 ];
 
+// Check if email is in owner list
+export function isOwnerEmail(email: string): boolean {
+  return OWNER_EMAILS.includes(email.toLowerCase());
+}
+
 // Check if user is owner (bypasses all payment checks)
-async function isOwner(userId: string): Promise<boolean> {
+async function isOwner(userId: string, userEmail?: string): Promise<boolean> {
+  // First check by email if provided
+  if (userEmail && isOwnerEmail(userEmail)) {
+    return true;
+  }
+  
   // Check if user has owner flag in database
   const { data: user } = await supabase
     .from("users")
@@ -19,7 +29,7 @@ async function isOwner(userId: string): Promise<boolean> {
     .single();
   
   if (user?.is_owner) return true;
-  if (user?.email && OWNER_EMAILS.includes(user.email)) return true;
+  if (user?.email && isOwnerEmail(user.email)) return true;
   
   return false;
 }
@@ -91,9 +101,9 @@ export async function getTodayUsage(userId: string): Promise<number> {
 }
 
 // Check if user has pro subscription (or is owner)
-export async function isProUser(userId: string): Promise<boolean> {
+export async function isProUser(userId: string, userEmail?: string): Promise<boolean> {
   // Check if owner first
-  if (await isOwner(userId)) return true;
+  if (await isOwner(userId, userEmail)) return true;
   
   const { data } = await supabase
     .from("subscriptions")
@@ -106,13 +116,13 @@ export async function isProUser(userId: string): Promise<boolean> {
 }
 
 // Check if user can generate (free tier: 5/day, owners: unlimited)
-export async function canGenerate(userId: string): Promise<{ allowed: boolean; remaining: number; isPro: boolean; isOwner: boolean }> {
+export async function canGenerate(userId: string, userEmail?: string): Promise<{ allowed: boolean; remaining: number; isPro: boolean; isOwner: boolean }> {
   // Check if owner first
-  if (await isOwner(userId)) {
+  if (await isOwner(userId, userEmail)) {
     return { allowed: true, remaining: Infinity, isPro: true, isOwner: true };
   }
   
-  const isPro = await isProUser(userId);
+  const isPro = await isProUser(userId, userEmail);
   
   if (isPro) {
     return { allowed: true, remaining: Infinity, isPro: true, isOwner: false };
@@ -165,30 +175,97 @@ export async function deleteGeneration(userId: string, generationId: string) {
   if (error) throw error;
 }
 
-// Save feedback for a generation
-export async function saveFeedback(userId: string, generationId: string, rating: number, comment?: string) {
+// Save feedback
+export async function saveFeedback(userId: string, rating: number, comment: string, generationId?: string) {
   const { error } = await supabase
     .from("feedback")
-    .insert({ user_id: userId, generation_id: generationId, rating, comment });
+    .insert({ 
+      user_id: userId, 
+      rating, 
+      comment,
+      generation_id: generationId 
+    });
   
   if (error) throw error;
 }
 
-// CUSTOM TONES
-
-// Create a custom tone
-export async function createCustomTone(userId: string, name: string, description: string, sampleText: string) {
-  // Generate tone prompt from sample text using OpenAI
-  const tonePrompt = await analyzeTone(sampleText);
+// Add to waitlist
+export async function addToWaitlist(email: string, tool: string, tone: string) {
+  const { error } = await supabase
+    .from("waitlist")
+    .insert({ email, tool, tone });
   
+  if (error) {
+    // If duplicate email, that's fine
+    if (error.code === "23505") return;
+    throw error;
+  }
+}
+
+// Check if user has active team membership
+export async function hasTeamAccess(userId: string): Promise<boolean> {
   const { data, error } = await supabase
-    .from("custom_tones")
+    .from("team_members")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .single();
+  
+  if (error) return false;
+  return !!data;
+}
+
+// Get user's team
+export async function getUserTeam(userId: string) {
+  // First check if user is a team member
+  const { data: membership } = await supabase
+    .from("team_members")
+    .select("team_id")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .single();
+  
+  if (membership) {
+    // Get team details
+    const { data: team } = await supabase
+      .from("teams")
+      .select("*")
+      .eq("id", membership.team_id)
+      .single();
+    return team;
+  }
+  
+  // Check if user owns a team
+  const { data: ownedTeam } = await supabase
+    .from("teams")
+    .select("*")
+    .eq("owner_id", userId)
+    .single();
+  
+  return ownedTeam;
+}
+
+// Create a team
+export async function createTeam(ownerId: string, name: string) {
+  const { data, error } = await supabase
+    .from("teams")
+    .insert({ owner_id: ownerId, name })
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+}
+
+// Invite member to team
+export async function inviteTeamMember(teamId: string, email: string, invitedBy: string) {
+  const { data, error } = await supabase
+    .from("team_invites")
     .insert({ 
-      user_id: userId, 
-      name, 
-      description, 
-      sample_text: sampleText,
-      tone_prompt: tonePrompt 
+      team_id: teamId, 
+      email, 
+      invited_by: invitedBy,
+      token: crypto.randomUUID()
     })
     .select()
     .single();
@@ -197,7 +274,126 @@ export async function createCustomTone(userId: string, name: string, description
   return data;
 }
 
-// Get all custom tones for a user
+// Accept team invite
+export async function acceptTeamInvite(token: string, userId: string) {
+  // Get invite
+  const { data: invite, error: inviteError } = await supabase
+    .from("team_invites")
+    .select("*")
+    .eq("token", token)
+    .eq("status", "pending")
+    .single();
+  
+  if (inviteError || !invite) {
+    throw new Error("Invalid or expired invite");
+  }
+  
+  // Check if invite is expired (7 days)
+  const inviteDate = new Date(invite.created_at);
+  const now = new Date();
+  const daysDiff = (now.getTime() - inviteDate.getTime()) / (1000 * 60 * 60 * 24);
+  
+  if (daysDiff > 7) {
+    await supabase
+      .from("team_invites")
+      .update({ status: "expired" })
+      .eq("id", invite.id);
+    throw new Error("Invite has expired");
+  }
+  
+  // Add member to team
+  const { error: memberError } = await supabase
+    .from("team_members")
+    .insert({
+      team_id: invite.team_id,
+      user_id: userId,
+      email: invite.email
+    });
+  
+  if (memberError) throw memberError;
+  
+  // Mark invite as accepted
+  await supabase
+    .from("team_invites")
+    .update({ status: "accepted" })
+    .eq("id", invite.id);
+  
+  return invite.team_id;
+}
+
+// Get team members
+export async function getTeamMembers(teamId: string) {
+  const { data, error } = await supabase
+    .from("team_members")
+    .select("*")
+    .eq("team_id", teamId)
+    .eq("status", "active");
+  
+  if (error) throw error;
+  return data || [];
+}
+
+// Remove team member
+export async function removeTeamMember(teamId: string, memberId: string, requesterId: string) {
+  // Verify requester is team owner
+  const { data: team } = await supabase
+    .from("teams")
+    .select("owner_id")
+    .eq("id", teamId)
+    .single();
+  
+  if (!team || team.owner_id !== requesterId) {
+    throw new Error("Only team owner can remove members");
+  }
+  
+  const { error } = await supabase
+    .from("team_members")
+    .update({ status: "removed" })
+    .eq("id", memberId)
+    .eq("team_id", teamId);
+  
+  if (error) throw error;
+}
+
+// Get all templates
+export async function getTemplates() {
+  const { data, error } = await supabase
+    .from("templates")
+    .select("*")
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+  
+  if (error) throw error;
+  return data || [];
+}
+
+// Get templates by category
+export async function getTemplatesByCategory(category: string) {
+  const { data, error } = await supabase
+    .from("templates")
+    .select("*")
+    .eq("category", category)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+  
+  if (error) throw error;
+  return data || [];
+}
+
+// Get popular templates
+export async function getPopularTemplates(limit: number = 10) {
+  const { data, error } = await supabase
+    .from("templates")
+    .select("*")
+    .eq("is_active", true)
+    .eq("is_popular", true)
+    .limit(limit);
+  
+  if (error) throw error;
+  return data || [];
+}
+
+// Get custom tones for user
 export async function getCustomTones(userId: string) {
   const { data, error } = await supabase
     .from("custom_tones")
@@ -208,6 +404,61 @@ export async function getCustomTones(userId: string) {
   
   if (error) throw error;
   return data || [];
+}
+
+// Create custom tone with AI analysis
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+async function analyzeTone(sampleText: string): Promise<string> {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: "You are a writing style analyzer. Analyze the provided text and create a prompt that captures its unique tone, style, vocabulary level, sentence structure, and overall voice. Return ONLY the prompt - no explanations."
+        },
+        {
+          role: "user",
+          content: `Analyze this writing sample and create a tone prompt:\n\n"${sampleText}"\n\nReturn a prompt like: "Rewrite the following in a [description] tone. Use [specific characteristics]."`
+        }
+      ],
+      max_tokens: 200,
+      temperature: 0.7,
+    });
+
+    return completion.choices[0]?.message?.content || defaultTonePrompt(sampleText);
+  } catch (error) {
+    console.error("Error analyzing tone:", error);
+    return defaultTonePrompt(sampleText);
+  }
+}
+
+function defaultTonePrompt(sampleText: string): string {
+  return `Rewrite the following in a tone similar to this example: "${sampleText.substring(0, 100)}...". Match the formality, vocabulary level, and sentence structure.`;
+}
+
+export async function createCustomTone(userId: string, name: string, description: string, sampleText: string) {
+  const tonePrompt = await analyzeTone(sampleText);
+  
+  const { data, error } = await supabase
+    .from("custom_tones")
+    .insert({
+      user_id: userId,
+      name,
+      description,
+      sample_text: sampleText,
+      tone_prompt: tonePrompt
+    })
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
 }
 
 // Update custom tone
@@ -238,148 +489,4 @@ export async function deleteCustomTone(userId: string, toneId: string) {
     .eq("user_id", userId);
   
   if (error) throw error;
-}
-
-// Helper function to analyze tone
-async function analyzeTone(sampleText: string): Promise<string> {
-  // This would call OpenAI to analyze the tone
-  // For now, return a default prompt
-  return `Rewrite the following in a tone similar to this example: "${sampleText.substring(0, 200)}...". Match the formality, vocabulary level, sentence structure, and overall voice.`;
-}
-
-// TEAM MANAGEMENT
-
-// Create a team
-export async function createTeam(ownerId: string, name: string, maxSeats: number = 5) {
-  const { data, error } = await supabase
-    .from("teams")
-    .insert({ 
-      owner_id: ownerId, 
-      name, 
-      max_seats: maxSeats 
-    })
-    .select()
-    .single();
-  
-  if (error) throw error;
-  return data;
-}
-
-// Get team for user
-export async function getTeamForUser(userId: string) {
-  // Check if user owns a team
-  const { data: ownedTeam } = await supabase
-    .from("teams")
-    .select("*")
-    .eq("owner_id", userId)
-    .single();
-  
-  if (ownedTeam) return { ...ownedTeam, role: 'owner' };
-  
-  // Check if user is a member of a team
-  const { data: membership } = await supabase
-    .from("team_members")
-    .select("*, team:teams(*)")
-    .eq("user_id", userId)
-    .eq("role", 'member')
-    .single();
-  
-  if (membership) {
-    return { ...membership.team, role: membership.role };
-  }
-  
-  return null;
-}
-
-// Get team members
-export async function getTeamMembers(teamId: string) {
-  const { data, error } = await supabase
-    .from("team_members")
-    .select("*")
-    .eq("team_id", teamId);
-  
-  if (error) throw error;
-  return data || [];
-}
-
-// Invite team member
-export async function inviteTeamMember(teamId: string, email: string, invitedBy: string) {
-  const token = generateInvitationToken();
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
-  
-  const { data, error } = await supabase
-    .from("team_invitations")
-    .insert({ 
-      team_id: teamId, 
-      email, 
-      invited_by: invitedBy,
-      token,
-      expires_at: expiresAt.toISOString()
-    })
-    .select()
-    .single();
-  
-  if (error) throw error;
-  return { ...data, inviteUrl: `${process.env.NEXT_PUBLIC_APP_URL}/team/invite?token=${token}` };
-}
-
-// Accept team invitation
-export async function acceptInvitation(token: string, userId: string) {
-  // Get invitation
-  const { data: invitation } = await supabase
-    .from("team_invitations")
-    .select("*")
-    .eq("token", token)
-    .eq("status", 'pending')
-    .gt("expires_at", new Date().toISOString())
-    .single();
-  
-  if (!invitation) {
-    throw new Error("Invalid or expired invitation");
-  }
-  
-  // Add user to team
-  const { error: memberError } = await supabase
-    .from("team_members")
-    .insert({
-      team_id: invitation.team_id,
-      user_id: userId,
-      invited_by: invitation.invited_by,
-      joined_at: new Date().toISOString()
-    });
-  
-  if (memberError) throw memberError;
-  
-  // Mark invitation as accepted
-  const { error: updateError } = await supabase
-    .from("team_invitations")
-    .update({ status: 'accepted' })
-    .eq("id", invitation.id);
-  
-  if (updateError) throw updateError;
-  
-  return { success: true };
-}
-
-// Remove team member
-export async function removeTeamMember(teamId: string, userId: string, removedBy: string) {
-  const { error } = await supabase
-    .from("team_members")
-    .delete()
-    .eq("team_id", teamId)
-    .eq("user_id", userId);
-  
-  if (error) throw error;
-}
-
-// Check if user has team access (for usage limits)
-export async function hasTeamAccess(userId: string): Promise<boolean> {
-  const team = await getTeamForUser(userId);
-  return !!team && team.status === 'active';
-}
-
-// Helper function
-function generateInvitationToken(): string {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }

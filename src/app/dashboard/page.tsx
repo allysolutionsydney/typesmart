@@ -1,18 +1,21 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { getTodayUsage, canGenerate } from "@/lib/supabase";
 import DashboardClient from "./DashboardClient";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
+  const user = await currentUser();
   
   if (!userId) {
     redirect("/");
   }
 
+  const userEmail = user?.emailAddresses[0]?.emailAddress;
+
   const [usage, canGen] = await Promise.all([
     getTodayUsage(userId),
-    canGenerate(userId),
+    canGenerate(userId, userEmail),
   ]);
 
   const remaining = canGen.isPro ? Infinity : Math.max(0, 5 - usage);
