@@ -70,14 +70,29 @@ export default function AccountDashboard({ userId, userEmail, isPro, isOwner, us
   const generateApiKey = async () => {
     setLoading(true);
     try {
+      console.log('Generating API key...');
       const res = await fetch('/api/extension-api', { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
+      console.log('Response status:', res.status);
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('API Error:', errorData);
+        alert(`Error: ${errorData.error || 'Failed to generate API key'}`);
+        return;
+      }
+      
+      const data = await res.json();
+      console.log('API Key generated:', data);
+      
+      if (data.apiKey) {
         setApiKey(data.apiKey);
         alert('API key generated successfully!');
+      } else {
+        alert('No API key returned from server');
       }
     } catch (err) {
-      alert('Failed to generate API key');
+      console.error('Generate API key error:', err);
+      alert(`Failed to generate API key: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
