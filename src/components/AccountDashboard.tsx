@@ -113,6 +113,18 @@ export default function AccountDashboard({ userId, userEmail, isPro, isOwner, us
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
+  // Prevent hydration issues - don't render until mounted
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="max-w-7xl mx-auto px-4 py-8">
