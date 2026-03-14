@@ -11,6 +11,7 @@ import CustomTonesManager from "./CustomTonesManager";
 
 export default function TypeSmartLanding() {
   const { isSignedIn, isLoaded } = useAuth();
+  const [mounted, setMounted] = useState(false);
   const [activeTool, setActiveTool] = useState<"linkedin" | "email" | "dating" | "complaint">("linkedin");
   const [input, setInput] = useState("");
   const [tone, setTone] = useState("professional");
@@ -47,6 +48,7 @@ export default function TypeSmartLanding() {
 
   // Get usage on load
   useEffect(() => {
+    setMounted(true);
     if (isLoaded && isSignedIn) {
       fetchUsage();
     }
@@ -167,6 +169,18 @@ export default function TypeSmartLanding() {
       setCheckoutLoading(false);
     }
   };
+
+  // Prevent hydration issues - show loading until mounted
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white">
