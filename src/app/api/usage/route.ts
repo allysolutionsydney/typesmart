@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { canGenerate } from "@/lib/supabase";
 
 export async function GET() {
   try {
     const { userId } = await auth();
-    const user = await currentUser();
     
     if (!userId) {
       return NextResponse.json(
@@ -14,10 +13,9 @@ export async function GET() {
       );
     }
 
-    const userEmail = user?.emailAddresses[0]?.emailAddress;
-    const { remaining, isPro, isOwner } = await canGenerate(userId, userEmail);
+    const { remaining, isPro } = await canGenerate(userId);
 
-    return NextResponse.json({ remaining, isPro, isOwner });
+    return NextResponse.json({ remaining, isPro });
   } catch (error) {
     console.error("Error fetching usage:", error);
     return NextResponse.json(

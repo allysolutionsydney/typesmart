@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import OpenAI from "openai";
-import { canGenerate, trackGeneration, saveGeneration, hasTeamAccess, isOwnerEmail } from "@/lib/supabase";
+import { canGenerate, trackGeneration, saveGeneration, hasTeamAccess } from "@/lib/supabase";
 import { createClient } from "@supabase/supabase-js";
 
 const openai = new OpenAI({
@@ -17,15 +17,10 @@ export async function POST(request: NextRequest) {
   try {
     // Try Clerk auth first (web app)
     let userId: string | null = null;
-    let userEmail: string | undefined = undefined;
     
     try {
       const authResult = await auth();
       userId = authResult.userId;
-      
-      // Get user email for owner check
-      const user = await currentUser();
-      userEmail = user?.emailAddresses[0]?.emailAddress;
     } catch {
       userId = null;
     }
@@ -88,7 +83,7 @@ export async function POST(request: NextRequest) {
       remaining = Infinity;
       isPro = true;
     } else {
-      const result = await canGenerate(userId, userEmail);
+      const result = await canGenerate(userId);
       allowed = result.allowed;
       remaining = result.remaining;
       isPro = result.isPro;
